@@ -26,7 +26,7 @@ if __name__ == "__main__":
     
     next(reader)
     for row in reader:
-      if row[4] != "Student":
+      if row[4] != "Student" or row[7] == 0:
         continue
       
       genders.append(gender_map[row[1]])
