@@ -26,6 +26,9 @@ if __name__ == "__main__":
     
     next(reader)
     for row in reader:
+      if row[4] != "Student":
+        continue
+      
       genders.append(gender_map[row[1]])
       has_gt_8_hrs_sleep.append(1 if row[10] == "More than 8 hours" else 0)
       has_depression.append(int(row[17]))
