@@ -3,7 +3,7 @@ import numpy as np
 from statistics import NormalDist
 import scipy.stats as stats
 # import matplotlib.pyplot as plt
-# import sklearn.linear_model as lin
+import sklearn.linear_model as lin
 
 def pearson_correlation(X,Y):
     if len(X)==len(Y):
@@ -13,10 +13,24 @@ def pearson_correlation(X,Y):
         corr = Sum_xy / np.sqrt(Sum_x_squared * Sum_y_squared)
     return corr
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
+  yes_no_map = {"No": 0, "Yes": 1}
+  
   genders = [] # 0 = female 1 male
   gender_map = {"Female" : 0, "Male": 1}
   
+  ages = []
+  academic_pressure = []
+  cgpa = []
+  study_satisfaction = []
+  sleep_duration = []
+  sleep_duration_map = {"Less than 5 hours": 0, "5-6 hours": 1, "6-7 hours": 2, "7-8 hours": 3, "More than 8 hours": 4}
+  dietary_habits = []
+  dietary_habits_map = {"Unhealthy": 0, "Moderate": 1, "Healthy": 2}
+  suicidal_thoughts = []
+  work_study_hours = []
+  financial_stress = []
+  fam_history_of_mi = []
   
   has_gt_8_hrs_sleep = []
   has_depression = []
@@ -25,19 +39,40 @@ if __name__ == "__main__":
     reader = csv.reader(file)
     
     next(reader)
-    for row in reader:
-      if row[4] != "Student" or row[7] == 0:
-        continue
-      
-      genders.append(gender_map[row[1]])
-      has_gt_8_hrs_sleep.append(1 if row[10] == "More than 8 hours" else 0)
-      has_depression.append(int(row[17]))
+    rowNum = 0
+    try:
+      for row in reader:
+        rowNum += 1
+        hasInvalid = False
+        for value in row:
+          if value == "Others" or value == "NA":
+            hasInvalid = True
+            break
+        if row[4] != "Student" or row[7] == 0 or hasInvalid:
+          continue
+        
+        genders.append(gender_map[row[1]])
+        
+        ages.append(int(row[2]))
+        academic_pressure.append(int(row[5]))
+        cgpa.append(float(row[7]))
+        study_satisfaction.append(int(row[8]))
+        sleep_duration.append(sleep_duration_map[row[10]])
+        dietary_habits.append(dietary_habits_map[row[11]])
+        suicidal_thoughts.append(yes_no_map[row[13]])
+        work_study_hours.append(int(row[14]))
+        financial_stress.append(int(row[15]))
+        fam_history_of_mi.append(yes_no_map[row[16]])
+        
+        has_gt_8_hrs_sleep.append(1 if row[10] == "More than 8 hours" else 0)
+        has_depression.append(int(row[17]))
+    except Exception as err:
+      print(f"Error at row {rowNum}: {err}")
   
   
   genders = np.asarray(genders)
   has_gt_8_hrs_sleep = np.asarray(has_gt_8_hrs_sleep)
   has_depression = np.asarray(has_depression)
-  
   sample_size = has_depression.shape[0]
   
   # B.6
@@ -77,5 +112,11 @@ if __name__ == "__main__":
   print(f"B.8 {z_score:.3f}")
   
   
+  # Linear Regression Model
+  X = np.asarray([genders, ages, academic_pressure, cgpa, study_satisfaction, sleep_duration, dietary_habits, suicidal_thoughts, work_study_hours, financial_stress, fam_history_of_mi]).transpose()
+  y = has_depression
   
+  print(X.shape, y.shape)
   
+  classifier = lin.LogisticRegression().fit(X, y)
+  print(classifier.coef_, classifier.intercept_)
