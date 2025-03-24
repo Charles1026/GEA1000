@@ -4,6 +4,8 @@ from statistics import NormalDist
 import scipy.stats as stats
 # import matplotlib.pyplot as plt
 import sklearn.linear_model as lin
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import log_loss, roc_auc_score
 
 def pearson_correlation(X,Y):
     if len(X)==len(Y):
@@ -12,6 +14,10 @@ def pearson_correlation(X,Y):
         Sum_y_squared = sum((Y-Y.mean())**2)       
         corr = Sum_xy / np.sqrt(Sum_x_squared * Sum_y_squared)
     return corr
+  
+def standardise(arr: np.ndarray, axis = None) -> np.ndarray:
+  arr = arr
+  return (arr - arr.mean(axis = axis, keepdims = True)) / arr.std(axis = axis, keepdims = True)
 
 if __name__ == "__main__":
   yes_no_map = {"No": 0, "Yes": 1}
@@ -31,6 +37,10 @@ if __name__ == "__main__":
   work_study_hours = []
   financial_stress = []
   fam_history_of_mi = []
+  degrees = []
+  degree_map = {"B.Tech": 0, "LLB": 1, "M.Tech": 2, "B.Com": 3, "B.Ed": 4, "B.Arch": 5, "Class 12": 6, "BHM": 7, "M.Ed": 8, 
+                "M.Pharm": 9,"MSc": 10, "BSc": 11, "B.Pharm": 12, "M.Com": 13, "MHM": 14, "BBA": 15, "PhD": 16, "MA": 17,
+                "MBBS": 18, "LLM": 19, "MBA": 20, "MCA": 21, "BCA": 22, "BA": 23, "BE": 24, "MD": 25, "ME": 26}
   
   has_gt_8_hrs_sleep = []
   has_depression = []
@@ -78,24 +88,21 @@ if __name__ == "__main__":
   # B.6
   depression_rate = np.count_nonzero(has_depression) / sample_size
   margin_of_error = NormalDist().inv_cdf((1 + 0.95) / 2) * np.sqrt(depression_rate * (1 - depression_rate) / sample_size)
-  print(f"B.6 95% Confidence Interval [{depression_rate - margin_of_error:.3f}, {depression_rate + margin_of_error:.3f}]")
+  print(f"B.6 95% Confidence Interval for depression rate [{depression_rate - margin_of_error:.3f}, {depression_rate + margin_of_error:.3f}], with p = {depression_rate:.3f}\n")
   
   
-  # B.7
-  gt_8_hrs_sleep_rate = np.count_nonzero(has_gt_8_hrs_sleep) / sample_size
+  # B.7 
+  observed_counts = np.asarray([np.count_nonzero(has_gt_8_hrs_sleep * has_depression),
+                               np.count_nonzero((1 - has_gt_8_hrs_sleep) * has_depression),
+                               np.count_nonzero(has_gt_8_hrs_sleep * (1 - has_depression)),
+                               np.count_nonzero((1 - has_gt_8_hrs_sleep) * (1 - has_depression))]).reshape((2, 2))
   
-  expected_rates = np.asarray([gt_8_hrs_sleep_rate * depression_rate, 
-                               (1 - gt_8_hrs_sleep_rate) * depression_rate, 
-                               gt_8_hrs_sleep_rate * (1 - depression_rate), 
-                               (1 - gt_8_hrs_sleep_rate) * (1 - depression_rate)])
+  row_totals = observed_counts.sum(axis = 1, keepdims = True)
+  col_totals = observed_counts.sum(axis = 0, keepdims = True)
+  expected_counts = (row_totals @ col_totals) / sample_size
   
-  observed_rates = np.asarray([np.count_nonzero(has_gt_8_hrs_sleep * has_depression) / sample_size,
-                               np.count_nonzero((1 - has_gt_8_hrs_sleep) * has_depression) / sample_size,
-                               np.count_nonzero(has_gt_8_hrs_sleep * (1 - has_depression)) / sample_size,
-                               np.count_nonzero((1 - has_gt_8_hrs_sleep) * (1 - has_depression)) / sample_size])
-  
-  chi2_statistic = np.sum(((observed_rates - expected_rates) ** 2) / expected_rates)
-  print(f"B.7 Chi Square Test p-Value: {stats.chi2.sf(chi2_statistic, 1):.3f}")
+  chi2_statistic = np.sum(((observed_counts - expected_counts) ** 2) / expected_counts)
+  print(f"B.7 Chi Square Test for independence statistic: {chi2_statistic:.3f}, p-Value: {stats.chi2.sf(chi2_statistic, 1):.3f}\n")
   
   
   # B.8
@@ -109,14 +116,42 @@ if __name__ == "__main__":
  
   z_score = (depression_rate_in_females - depression_rate_in_males) / np.sqrt(pooled_rate * (1 - pooled_rate) * ((1 / (num_males)) + (1 / (sample_size - num_males))))
   
-  print(f"B.8 {z_score:.3f}")
+  print(f"B.8 2 sample t-test for proportion of depressed males against females z-value: {z_score:.3f}\n")
   
   
-  # Linear Regression Model
-  X = np.asarray([genders, ages, academic_pressure, cgpa, study_satisfaction, sleep_duration, dietary_habits, suicidal_thoughts, work_study_hours, financial_stress, fam_history_of_mi]).transpose()
+  # Linear Regression Model, standardise all non binary variables
+  X = standardise(np.asarray([genders, ages, academic_pressure, cgpa, study_satisfaction, sleep_duration, dietary_habits, 
+                  suicidal_thoughts, work_study_hours, financial_stress, fam_history_of_mi]), axis = 1).transpose()
   y = has_depression
   
-  print(X.shape, y.shape)
+  X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 69420) 
   
-  classifier = lin.LogisticRegression().fit(X, y)
-  print(classifier.coef_, classifier.intercept_)
+  print(f"Split into {y_train.size} train samples and {y_test.size} test samples")
+  
+  classifier = lin.LogisticRegression().fit(X_train, y_train)
+  # print(classifier.coef_)
+  
+  # evaluate model
+  y_pred = classifier.predict_proba(X_test)[:,1]
+  print(f"Base Model log loss: {log_loss(y_test, y_pred):.3f}, AUC-ROC: {roc_auc_score(y_test, y_pred):.3f}")
+  
+  # perform significance test on 
+  p = classifier.predict_proba(X_train).transpose() # predict returns p and 1 - p
+  W = np.diag(p[0] * p[1]) # p * 1-p
+  V = np.linalg.inv(X_train.transpose() @ W @ X_train)
+  std_errs = np.sqrt(np.diag(V))
+  z_stat = classifier.coef_ / std_errs
+  print(z_stat)
+  
+  filter = (np.abs(z_stat) > NormalDist().inv_cdf((1 + 0.95) / 2)).flatten()
+  
+  new_X_train = X_train[:, filter]
+  new_X_test = X_test[:, filter]
+  
+  #
+  new_classifier = lin.LogisticRegression().fit(new_X_train, y_train)
+  # print(new_classifier.coef_)
+  
+  # evaluate model
+  new_y_pred = new_classifier.predict_proba(new_X_test)[:,1]
+  print(f"Reduced Model log loss: {log_loss(y_test, new_y_pred):.3f}, AUC-ROC: {roc_auc_score(y_test, new_y_pred):.3f}")
